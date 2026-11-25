@@ -1,4 +1,23 @@
 import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+class _Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"OK")
+    def log_message(self, *args):
+        pass
+
+def _keep_alive():
+    port = int(os.environ.get("PORT", 10000))
+    try:
+        HTTPServer(("0.0.0.0", port), _Handler).serve_forever()
+    except Exception:
+        pass
+
+threading.Thread(target=_keep_alive, daemon=True).start()import os
 import telebot
 import google.generativeai as genai
 from collections import defaultdict
