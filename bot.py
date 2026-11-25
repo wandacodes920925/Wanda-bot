@@ -17,7 +17,8 @@ def _keep_alive():
     except Exception:
         pass
 
-threading.Thread(target=_keep_alive, daemon=True).start()import os
+threading.Thread(target=_keep_alive, daemon=True).start()
+
 import telebot
 import google.generativeai as genai
 from collections import defaultdict
