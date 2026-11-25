@@ -1,35 +1,35 @@
 import os
-import requests
+import logging
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
+import anthropic
+
+logging.basicConfig(level=logging.INFO)
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
-CLAUDE_KEY = os.environ.get("CLAUDE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+
+client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hi Wanda! I'm live with Muse. Send me anything.")
+    await update.message.reply_text("Hi! I'm Muse. Send me a message and I'll reply.")
 
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if not CLAUDE_KEY:
-        await update.message.reply_text(f"You said: {text} (Add CLAUDE_API_KEY in Render to get smart replies)")
-        return
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
     try:
-        r = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={"x-api-key": CLAUDE_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-            json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 500, "messages": [{"role": "user", "content": text}]},
-            timeout=30
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1000,
+            messages=[{"role": "user", "content": user_text}]
         )
-        data = r.json()
-        reply = data["content"][0]["text"]
-        await update.message.reply_text(reply)
+        reply = response.content[0].text
     except Exception as e:
-        await update.message.reply_text(f"Error: {e}")
+        reply = f"Sorry, something went wrong: {e}"
+    await update.message.reply_text(reply)
 
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    print("Bot starting...")
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    print("Bot is running...")
     app.run_polling()
