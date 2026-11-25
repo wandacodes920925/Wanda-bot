@@ -3,29 +3,33 @@ import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, ContextTypes, filters
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-def ask_gemini(prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    data = {"contents": [{"parts": [{"text": f"You are Wanda-Bot, a friendly helpful AI assistant for Wanda. Answer clearly and helpfully. User: {prompt}"}]}]}
-    try:
-        r = requests.post(url, json=data, timeout=30)
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:
-        print(e)
-        return "Sorry, my brain glitched a bit. Try again?"
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+CLAUDE_KEY = os.environ.get("CLAUDE_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Hey! I'm Wanda-Bot 2.0 🤖 Ask me anything!")
+    await update.message.reply_text("Hi Wanda! I'm live with Muse. Send me anything.")
 
 async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message.text
-    reply = ask_gemini(msg)
-    await update.message.reply_text(reply)
+    text = update.message.text
+    if not CLAUDE_KEY:
+        await update.message.reply_text(f"You said: {text} (Add CLAUDE_API_KEY in Render to get smart replies)")
+        return
+    try:
+        r = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={"x-api-key": CLAUDE_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+            json={"model": "claude-3-5-sonnet-20241022", "max_tokens": 500, "messages": [{"role": "user", "content": text}]},
+            timeout=30
+        )
+        data = r.json()
+        reply = data["content"][0]["text"]
+        await update.message.reply_text(reply)
+    except Exception as e:
+        await update.message.reply_text(f"Error: {e}")
 
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-print("Wanda-Bot 2.0 running...")
-app.run_polling()
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
+    print("Bot starting...")
+    app.run_polling()
